@@ -3388,17 +3388,30 @@
     if (e.key==='Escape' && heroPanel.style.display==='flex') closeHeroPanel();
   });
 
-  function loop(){
-    update(); draw(); drawHeroWidgets();
+  // Логика идёт с фиксированным шагом 60 раз в секунду независимо от экрана:
+  // на мониторе в 120 или 144 Гц игра раньше шла вдвое быстрее. Рисуем на каждом
+  // кадре экрана, а обновляем столько раз, сколько набралось прошедшего времени.
+  var STEP = 1000/60, acc = 0, lastT = null;
+  function loop(now){
+    requestAnimationFrame(loop);
+    if (now === undefined) now = performance.now();
+    if (lastT === null) lastT = now;
+    var dt = now - lastT; lastT = now;
+    if (dt > 250) dt = 250;                       // вкладка была в фоне: не «догоняем» минуты
+    if (Math.abs(dt - STEP) < 2.2) dt = STEP;     // обычный экран 60 Гц: без дрожания шага
+    acc += dt;
+    var steps = 0;
+    while (acc >= STEP - 0.001 && steps < 5){ update(); acc -= STEP; steps++; }
+    if (steps === 5) acc = 0;                     // не накапливаем долг на слабом устройстве
+    draw(); drawHeroWidgets();
     if (fpsOn){
       fpsFrames++;
-      var nowT=performance.now();
+      var nowT = performance.now();
       if (nowT-fpsAt >= 500){
         fpsEl.textContent = Math.round(fpsFrames*1000/(nowT-fpsAt));
-        fpsFrames=0; fpsAt=nowT;
+        fpsFrames = 0; fpsAt = nowT;
       }
     }
-    requestAnimationFrame(loop);
   }
 
   // ---------- Карта миров ----------
@@ -3488,27 +3501,42 @@
   document.getElementById('pf-mapplay').addEventListener('pointerdown', function(e){ e.preventDefault(); ensureAudio(); startRun(Math.min(maxUnlockedLevel, LEVELS.length-1)); });
 
   // ---------- Управление ----------
+  // Буквенные клавиши определяем по физическому положению (e.code), а не по тому,
+  // какая буква введена: иначе при русской раскладке A, D, W, S, X не работают.
+  function keyName(e){
+    switch (e.code){
+      case 'KeyA': return 'a';
+      case 'KeyD': return 'd';
+      case 'KeyW': return 'w';
+      case 'KeyS': return 's';
+      case 'KeyX': return 'x';
+      case 'ControlLeft': case 'ControlRight': return 'Control';
+    }
+    return e.key;
+  }
   window.addEventListener('keydown', function(e){
+    var k = keyName(e);
     ensureAudio();
-    if (introHold){ if (dismissIntro()) { if (e.key===' ') e.preventDefault(); return; } }
-    if (e.key==='ArrowLeft'||e.key==='a'||e.key==='A') keys.left=true;
-    if (e.key==='ArrowRight'||e.key==='d'||e.key==='D') keys.right=true;
-    if (e.key==='ArrowDown'||e.key==='s'||e.key==='S'){ keys.down=true; if(!downPrev){ downPrev=true; pressDown(); } }
-    if (e.key==='Shift') keys.run=true;
-    if (e.key==='x'||e.key==='X'||e.key==='Control'){ if(!firePrev){ firePrev=true; pressFire(); } keys.fire=true; }
-    if (e.key===' '||e.key==='ArrowUp'||e.key==='w'||e.key==='W'){
+    if (introHold){ if (dismissIntro()) { if (k===' ') e.preventDefault(); return; } }
+    if (k==='ArrowLeft'||k==='a'||k==='A') keys.left=true;
+    if (k==='ArrowRight'||k==='d'||k==='D') keys.right=true;
+    if (k==='ArrowDown'||k==='s'||k==='S'){ keys.down=true; if(!downPrev){ downPrev=true; pressDown(); } }
+    if (k==='Shift') keys.run=true;
+    if (k==='x'||k==='X'||k==='Control'){ if(!firePrev){ firePrev=true; pressFire(); } keys.fire=true; }
+    if (k===' '||k==='ArrowUp'||k==='w'||k==='W'){
       keys.jump=true;
       if (!jumpPrev){ jumpPrev=true; pressJump(); }
-      if (e.key===' ') e.preventDefault();
+      if (k===' ') e.preventDefault();
     }
   });
   window.addEventListener('keyup', function(e){
-    if (e.key==='ArrowLeft'||e.key==='a'||e.key==='A') keys.left=false;
-    if (e.key==='ArrowRight'||e.key==='d'||e.key==='D') keys.right=false;
-    if (e.key==='ArrowDown'||e.key==='s'||e.key==='S'){ keys.down=false; downPrev=false; }
-    if (e.key==='Shift') keys.run=false;
-    if (e.key==='x'||e.key==='X'||e.key==='Control'){ keys.fire=false; firePrev=false; }
-    if (e.key===' '||e.key==='ArrowUp'||e.key==='w'||e.key==='W'){ keys.jump=false; jumpPrev=false; }
+    var k = keyName(e);
+    if (k==='ArrowLeft'||k==='a'||k==='A') keys.left=false;
+    if (k==='ArrowRight'||k==='d'||k==='D') keys.right=false;
+    if (k==='ArrowDown'||k==='s'||k==='S'){ keys.down=false; downPrev=false; }
+    if (k==='Shift') keys.run=false;
+    if (k==='x'||k==='X'||k==='Control'){ keys.fire=false; firePrev=false; }
+    if (k===' '||k==='ArrowUp'||k==='w'||k==='W'){ keys.jump=false; jumpPrev=false; }
   });
 
   // клик по игровому полю тоже закрывает заставку
